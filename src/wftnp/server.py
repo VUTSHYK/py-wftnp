@@ -136,7 +136,7 @@ class ServerConnection:
             if request.opcode == Opcode.SERVICES:
                 if request.payload:
                     raise ProtocolError("SERVICES requests must not include a payload")
-                response = service_uuid.bytes + b"".join(service.uuid.bytes for service in self.server.registry.services)
+                response = b"".join(service.uuid.bytes for service in self.server.registry.services)
                 await self._send_frame(Opcode.SERVICES, request.sequence, payload=response)
                 return
 
@@ -147,7 +147,7 @@ class ServerConnection:
                 service = self.server.registry.service_for(service_uuid)
                 if service is None:
                     raise ProtocolError(f"Unknown service UUID {service_uuid}")
-                response = b"".join(
+                response = service_uuid.bytes + b"".join(
                     characteristic.uuid.bytes + bytes((int(characteristic.properties) & 0xFF,))
                     for characteristic in service.characteristics
                 )
