@@ -86,10 +86,8 @@ async def test_server_characteristics_response_includes_service_uuid_prefix():
             assert [item.uuid for item in characteristics] == [CHARACTERISTIC]
             assert characteristics[0].properties == (
                 CharacteristicProperties.READ
-                |
-                CharacteristicProperties.WRITE
-                |
-                CharacteristicProperties.NOTIFY
+                | CharacteristicProperties.WRITE
+                | CharacteristicProperties.NOTIFY
             )
         finally:
             writer.close()
