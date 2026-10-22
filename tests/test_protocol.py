@@ -55,6 +55,7 @@ def test_uuid_byte_order_and_unknown_property_bits():
     assert result.properties & CharacteristicProperties.NOTIFY
     assert int(result.properties) == 0x87
 
+
 async def test_server_characteristics_response_includes_service_uuid_prefix():
     server = WftnpServer(
         host="127.0.0.1",
@@ -95,6 +96,7 @@ async def test_server_characteristics_response_includes_service_uuid_prefix():
             await writer.wait_closed()
     finally:
         await server.stop()
+
 
 @pytest.mark.parametrize("payload", [b"x", b"x" * 17])
 def test_bad_service_list(payload):
