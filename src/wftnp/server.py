@@ -196,7 +196,7 @@ class ServerConnection:
                     raise ProtocolError(f"Unknown characteristic UUID {characteristic_uuid}")
                 if enable:
                     if not (characteristic.properties & CharacteristicProperties.NOTIFY):
-                       raise ProtocolError(
+                        raise ProtocolError(
                             f"Characteristic {characteristic_uuid} does not support notifications"
                         )
                     self.subscriptions.add(characteristic_uuid)
