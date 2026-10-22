@@ -56,7 +56,12 @@ class _ServerRegistry:
 class ServerConnection:
     """One accepted client connection. This keeps framing and request handling per peer."""
 
-    def __init__(self, server: WftnpServer, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    def __init__(
+        self,
+        server: WftnpServer,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
+    ) -> None:
         self.server = server
         self.reader = reader
         self.writer = writer
@@ -191,7 +196,7 @@ class ServerConnection:
                     raise ProtocolError(f"Unknown characteristic UUID {characteristic_uuid}")
                 if enable:
                     if not (characteristic.properties & CharacteristicProperties.NOTIFY):
-                        raise ProtocolError(f"Characteristic {characteristic_uuid} does not support notifications")
+                        raise ProtocolError(f"Characteristic {characteristic_uuid} don't support notifications")
                     self.subscriptions.add(characteristic_uuid)
                     self.server._register_subscription(self, characteristic_uuid)
                 else:
