@@ -71,13 +71,13 @@ class ServerConnection:
         self._task = asyncio.create_task(self._read_loop(), name="wftnp-server-connection")
 
     async def close(self) -> None:
-        if self.closed.is_set():
-            return
         self.closed.set()
         self.writer.close()
-        self._task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await self._task
+        if self._task is not asyncio.current_task():
+            if not self._task.done():
+                self._task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._task
         with contextlib.suppress(ConnectionError, OSError):
             await self.writer.wait_closed()
 
