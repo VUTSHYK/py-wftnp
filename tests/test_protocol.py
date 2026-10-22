@@ -54,7 +54,7 @@ def test_uuid_byte_order_and_unknown_property_bits():
     assert result.uuid == CHARACTERISTIC
     assert result.properties & CharacteristicProperties.NOTIFY
     assert int(result.properties) == 0x87
-    
+
 async def test_server_characteristics_response_includes_service_uuid_prefix():
     server = WftnpServer(
         host="127.0.0.1",
@@ -84,7 +84,11 @@ async def test_server_characteristics_response_includes_service_uuid_prefix():
             characteristics = decode_characteristics(payload, SERVICE)
             assert [item.uuid for item in characteristics] == [CHARACTERISTIC]
             assert characteristics[0].properties == (
-                CharacteristicProperties.READ | CharacteristicProperties.WRITE | CharacteristicProperties.NOTIFY
+                CharacteristicProperties.READ
+                |
+                CharacteristicProperties.WRITE
+                |
+                CharacteristicProperties.NOTIFY
             )
         finally:
             writer.close()
