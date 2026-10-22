@@ -1,3 +1,4 @@
+import asyncio
 import struct
 from uuid import UUID
 
@@ -14,6 +15,7 @@ from wftnp.protocol import (
     encode,
     validate_response,
 )
+from wftnp.server import CharacteristicSpec, ServiceSpec, WftnpServer
 
 from .support.server import CHARACTERISTIC, SERVICE
 
@@ -52,7 +54,43 @@ def test_uuid_byte_order_and_unknown_property_bits():
     assert result.uuid == CHARACTERISTIC
     assert result.properties & CharacteristicProperties.NOTIFY
     assert int(result.properties) == 0x87
+    
+async def test_server_characteristics_response_includes_service_uuid_prefix():
+    server = WftnpServer(
+        host="127.0.0.1",
+        port=0,
+        services=(
+            ServiceSpec(
+                uuid=SERVICE,
+                characteristics=(CharacteristicSpec(uuid=CHARACTERISTIC, properties=0x07, value=b"value"),),
+            ),
+        ),
+    )
+    await server.start()
+    try:
+        reader, writer = await asyncio.open_connection("127.0.0.1", server.port)
+        try:
+            request = encode(Frame(Opcode.CHARACTERISTICS, 7, payload=SERVICE.bytes))
+            writer.write(request)
+            await writer.drain()
 
+            header = decode_header(await asyncio.wait_for(reader.readexactly(6), timeout=1.0))
+            assert header.opcode == Opcode.CHARACTERISTICS
+            assert header.sequence == 7
+            assert header.status == 0
+            payload = await asyncio.wait_for(reader.readexactly(header.length), timeout=1.0)
+            assert payload[:16] == SERVICE.bytes
+
+            characteristics = decode_characteristics(payload, SERVICE)
+            assert [item.uuid for item in characteristics] == [CHARACTERISTIC]
+            assert characteristics[0].properties == (
+                CharacteristicProperties.READ | CharacteristicProperties.WRITE | CharacteristicProperties.NOTIFY
+            )
+        finally:
+            writer.close()
+            await writer.wait_closed()
+    finally:
+        await server.stop()
 
 @pytest.mark.parametrize("payload", [b"x", b"x" * 17])
 def test_bad_service_list(payload):
