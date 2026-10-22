@@ -21,6 +21,7 @@ from .models import (
     Notification,
     Service,
 )
+from .server import CharacteristicSpec, ServiceSpec, WftnpServer
 from .subscription import Subscription
 
 __all__ = [
@@ -28,6 +29,7 @@ __all__ = [
     "CallbackError",
     "Characteristic",
     "CharacteristicProperties",
+    "CharacteristicSpec",
     "ClientState",
     "ConnectionLost",
     "Endpoint",
@@ -37,9 +39,11 @@ __all__ = [
     "ProtocolError",
     "RequestTimeout",
     "Service",
+    "ServiceSpec",
     "Subscription",
     "SubscriptionError",
     "SubscriptionOverflow",
     "WftnpClient",
     "WftnpError",
+    "WftnpServer",
 ]
