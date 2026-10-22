@@ -136,7 +136,7 @@ class ServerConnection:
             if request.opcode == Opcode.SERVICES:
                 if request.payload:
                     raise ProtocolError("SERVICES requests must not include a payload")
-                response = b"".join(service.uuid.bytes for service in self.server.registry.services)
+                response = service_uuid.bytes + b"".join(service.uuid.bytes for service in self.server.registry.services)
                 await self._send_frame(Opcode.SERVICES, request.sequence, payload=response)
                 return
 
