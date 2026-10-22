@@ -6,7 +6,7 @@ import asyncio
 import contextlib
 import inspect
 from collections.abc import Awaitable, Callable, Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from uuid import UUID
 
 from .exceptions import ProtocolError, WftnpError
@@ -56,7 +56,7 @@ class _ServerRegistry:
 class ServerConnection:
     """One accepted client connection. This keeps framing and request handling per peer."""
 
-    def __init__(self, server: "WftnpServer", reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    def __init__(self, server: WftnpServer, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         self.server = server
         self.reader = reader
         self.writer = writer
