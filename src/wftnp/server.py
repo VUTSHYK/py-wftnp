@@ -268,8 +268,8 @@ class WftnpServer:
         self._stopping = True
         server = self._server
         server.close()
-        await server.wait_closed()
-        self._server = None
+        # Python 3.12+ wait_closed() may wait for active client handlers.
+        # Close the peers first; otherwise shutdown deadlocks on open sockets.
         pending = tuple(self._notify_tasks)
         for task in pending:
             task.cancel()
@@ -281,6 +281,8 @@ class WftnpServer:
             *(connection.close() for connection in tuple(self._connections)),
             return_exceptions=True,
         )
+        await server.wait_closed()
+        self._server = None
         self._subscriptions.clear()
         self._connections.clear()
         self._started.clear()
