@@ -42,9 +42,7 @@ async def transport():
 
 async def subscribe(server):
     reader, writer = await asyncio.open_connection(server.host, server.port)
-    assert await request(reader, writer, 5, 7, CHAR.bytes + b"\x01") == (
-        1, 5, 7, 0, CHAR.bytes
-    )
+    assert await request(reader, writer, 5, 7, CHAR.bytes + b"\x01") == (1, 5, 7, 0, CHAR.bytes)
     return reader, writer
 
 
@@ -52,7 +50,11 @@ async def test_characteristics_exact_wire_layout(transport):
     reader, writer = await asyncio.open_connection(transport.host, transport.port)
     try:
         assert await request(reader, writer, 2, 9, SERVICE.bytes) == (
-            1, 2, 9, 0, SERVICE.bytes + CHAR.bytes + b"\x04"
+            1,
+            2,
+            9,
+            0,
+            SERVICE.bytes + CHAR.bytes + b"\x04",
         )
     finally:
         writer.close()
@@ -77,9 +79,7 @@ async def test_multiple_subscribers_and_notify_wire(transport):
 
 async def test_unsubscribe_and_disconnect_cleanup(transport):
     a, writer = await subscribe(transport)
-    assert await request(a, writer, 5, 8, CHAR.bytes + b"\x00") == (
-        1, 5, 8, 0, CHAR.bytes
-    )
+    assert await request(a, writer, 5, 8, CHAR.bytes + b"\x00") == (1, 5, 8, 0, CHAR.bytes)
     assert CHAR not in transport._subscriptions
     writer.close()
     await writer.wait_closed()
@@ -91,7 +91,11 @@ async def test_failed_notification_detaches_only_failed_peer(transport, monkeypa
     a, wa = await subscribe(transport)
     b, wb = await subscribe(transport)
     peers = tuple(transport._connections)
-    bad = next(c for c in peers if c.writer is not None and c.writer.get_extra_info("peername")[1] == wa.get_extra_info("sockname")[1])
+    bad = next(
+        c
+        for c in peers
+        if c.writer is not None and c.writer.get_extra_info("peername")[1] == wa.get_extra_info("sockname")[1]
+    )
     original = bad._send_frame
 
     async def fail(opcode, sequence, *, payload=b"", status=0):
@@ -115,7 +119,8 @@ async def test_slow_peer_timeout_does_not_block_other_peer(transport, monkeypatc
     a, wa = await subscribe(transport)
     b, wb = await subscribe(transport)
     bad = next(
-        c for c in transport._connections
+        c
+        for c in transport._connections
         if c.writer.get_extra_info("peername")[1] == wa.get_extra_info("sockname")[1]
     )
     original = bad._send_frame

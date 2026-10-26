@@ -16,9 +16,7 @@ HEADER = struct.Struct("!BBBBH")
 
 
 async def read_frame(reader):
-    version, opcode, seq, status, size = HEADER.unpack(
-        await asyncio.wait_for(reader.readexactly(6), 5)
-    )
+    version, opcode, seq, status, size = HEADER.unpack(await asyncio.wait_for(reader.readexactly(6), 5))
     payload = await asyncio.wait_for(reader.readexactly(size), 5)
     return version, opcode, seq, status, payload
 
