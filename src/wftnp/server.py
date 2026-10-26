@@ -242,6 +242,7 @@ class WftnpServer:
         self._stopping = False
         self._notify_tasks: set[asyncio.Task[None]] = set()
         self._notify_slots = asyncio.Semaphore(max_pending_notifications)
+        self._notify_calls: set[asyncio.Task[None]] = set()
 
     @property
     def endpoint(self) -> Endpoint:
@@ -269,6 +270,10 @@ class WftnpServer:
         server.close()
         await server.wait_closed()
         self._server = None
+        calls = tuple(self._notify_calls)
+        for task in calls:
+            task.cancel()
+        await asyncio.gather(*calls, return_exceptions=True)
         pending = tuple(self._notify_tasks)
         for task in pending:
             task.cancel()
@@ -330,6 +335,9 @@ class WftnpServer:
     async def notify_characteristic(self, characteristic_uuid: UUID, value: bytes) -> None:
         if self._stopping or self._server is None:
             return
+        caller = asyncio.current_task()
+        if caller is not None:
+            self._notify_calls.add(caller)
         subscribers = tuple(self._subscriptions.get(characteristic_uuid, ()))
         tasks: list[asyncio.Task[None]] = []
         try:
@@ -346,9 +354,14 @@ class WftnpServer:
                 task.add_done_callback(self._notification_done)
                 tasks.append(task)
             await asyncio.gather(*tasks, return_exceptions=True)
+        except asyncio.CancelledError:
+            if not self._stopping:
+                raise
         finally:
             if tasks:
                 await asyncio.gather(*tasks, return_exceptions=True)
+            if caller is not None:
+                self._notify_calls.discard(caller)
 
     def _notification_done(self, task: asyncio.Task[None]) -> None:
         self._notify_tasks.discard(task)
