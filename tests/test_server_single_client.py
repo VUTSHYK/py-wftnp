@@ -1,7 +1,6 @@
 """Single-controller admission and idle timeout integration tests."""
 
 import asyncio
-from contextlib import suppress
 
 import pytest
 
@@ -11,9 +10,10 @@ from wftnp import WftnpServer
 @pytest.mark.asyncio
 async def test_second_client_rejected_and_disconnect_releases():
     disconnected = []
+    disconnected_event = asyncio.Event()
     server = WftnpServer(
         port=0, max_connections=1, idle_timeout=60,
-        on_disconnect=lambda: disconnected.append(True),
+        on_disconnect=lambda: (disconnected.append(True), disconnected_event.set()),
     )
     await server.start()
     first_reader, first_writer = await asyncio.open_connection("127.0.0.1", server.port)
@@ -23,9 +23,7 @@ async def test_second_client_rejected_and_disconnect_releases():
         assert len(server.connections) == 1
         first_writer.close()
         await first_writer.wait_closed()
-        async with asyncio.timeout(2):
-            while not disconnected:
-                await asyncio.sleep(0.01)
+        await asyncio.wait_for(disconnected_event.wait(), 2)
         assert len(server.connections) == 0
         third_reader, third_writer = await asyncio.open_connection("127.0.0.1", server.port)
         try:
