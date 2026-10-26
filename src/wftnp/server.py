@@ -223,8 +223,10 @@ class ServerConnection:
                     try:
                         if characteristic.on_write_with_connection is not None:
                             result = characteristic.on_write_with_connection(self, value)
-                        else:
+                        elif characteristic.on_write is not None:
                             result = characteristic.on_write(value)
+                        else:
+                            result = None
                         if inspect.isawaitable(result):
                             result = await result
                     except Exception:
