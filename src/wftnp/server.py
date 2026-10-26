@@ -119,7 +119,8 @@ class ServerConnection:
     async def _read_loop(self) -> None:
         try:
             while not self.closed.is_set():
-                data = await self.reader.readexactly(6)
+                async with asyncio.timeout(self.server.idle_timeout):
+                    data = await self.reader.readexactly(6)
                 # Preserve the raw opcode so unsupported message types can be rejected
                 # with the protocol-defined INVALID_MESSAGE_TYPE response.
                 version, raw_opcode, sequence, _status, _length = HEADER.unpack(data)
@@ -135,10 +136,11 @@ class ServerConnection:
                 if header.status != 0:
                     await self._send_error(header.opcode, header.sequence)
                     continue
-                payload = await self.reader.readexactly(header.length)
+                async with asyncio.timeout(self.server.idle_timeout):
+                    payload = await self.reader.readexactly(header.length)
                 request = Frame(header.opcode, header.sequence, header.status, payload)
                 await self._handle_request(request)
-        except (asyncio.IncompleteReadError, ConnectionError, OSError):
+        except (asyncio.IncompleteReadError, ConnectionError, OSError, TimeoutError):
             pass
         finally:
             await self.server._detach_connection(self)
@@ -273,11 +275,18 @@ class WftnpServer:
         services: Iterable[ServiceSpec] | None = None,
         write_timeout: float = 2.0,
         max_pending_notifications: int = 64,
+        max_connections: int | None = None,
+        idle_timeout: float = 3600.0,
+        on_disconnect: Callable[[], None | Awaitable[None]] | None = None,
         mdns_name: str | None = None,
         mdns_address: str | None = None,
         mdns_serial_number: str | None = None,
         mdns_mac_address: str | None = None,
     ) -> None:
+        if max_connections is not None and max_connections < 1:
+            raise ValueError('max_connections must be positive')
+        if idle_timeout <= 0:
+            raise ValueError('idle_timeout must be positive')
         if write_timeout <= 0 or max_pending_notifications < 1:
             raise ValueError("write_timeout must be positive and notification limit at least one")
         if mdns_name is not None and mdns_address is None:
@@ -287,6 +296,9 @@ class WftnpServer:
         self._mdns_serial_number = mdns_serial_number
         self._mdns_mac_address = mdns_mac_address
         self._advertisement: ServerAdvertisement | None = None
+        self.max_connections = max_connections
+        self.idle_timeout = idle_timeout
+        self.on_disconnect = on_disconnect
         self.write_timeout = write_timeout
         self.host = host
         self.port = port
@@ -379,11 +391,19 @@ class WftnpServer:
         if self._stopping or self._server is None:
             writer.close()
             return
+        if self.max_connections is not None and len(self._connections) >= self.max_connections:
+            writer.close()
+            return
         connection = ServerConnection(self, reader, writer)
         self._connections.add(connection)
 
     async def _detach_connection(self, connection: ServerConnection) -> None:
+        was_connected = connection in self._connections
         self._connections.discard(connection)
+        if was_connected and self.on_disconnect is not None:
+            result = self.on_disconnect()
+            if inspect.isawaitable(result):
+                await result
         for characteristic_uuid in tuple(connection.subscriptions):
             self._unregister_subscription(connection, characteristic_uuid)
         connection.subscriptions.clear()
