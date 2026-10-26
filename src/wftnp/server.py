@@ -34,9 +34,9 @@ class CharacteristicSpec:
     properties: CharacteristicProperties | int = CharacteristicProperties.READ
     value: bytes = b""
     on_write: Callable[[bytes], bytes | Awaitable[bytes] | None] | None = None
-    on_write_with_connection: (
-        Callable[[ServerConnection, bytes], bytes | Awaitable[bytes] | None] | None
-    ) = None
+    on_write_with_connection: Callable[[ServerConnection, bytes], bytes | Awaitable[bytes] | None] | None = (
+        None
+    )
 
     def __post_init__(self) -> None:
         self.properties = CharacteristicProperties(self.properties)
@@ -291,9 +291,9 @@ class WftnpServer:
         mdns_mac_address: str | None = None,
     ) -> None:
         if max_connections is not None and max_connections < 1:
-            raise ValueError('max_connections must be positive')
+            raise ValueError("max_connections must be positive")
         if idle_timeout <= 0:
-            raise ValueError('idle_timeout must be positive')
+            raise ValueError("idle_timeout must be positive")
         if write_timeout <= 0 or max_pending_notifications < 1:
             raise ValueError("write_timeout must be positive and notification limit at least one")
         if mdns_name is not None and mdns_address is None:
