@@ -270,14 +270,13 @@ class WftnpServer:
         server.close()
         await server.wait_closed()
         self._server = None
-        calls = tuple(self._notify_calls)
-        for task in calls:
-            task.cancel()
-        await asyncio.gather(*calls, return_exceptions=True)
         pending = tuple(self._notify_tasks)
         for task in pending:
             task.cancel()
-        await asyncio.gather(*pending, return_exceptions=True)
+        calls = tuple(self._notify_calls)
+        for task in calls:
+            task.cancel()
+        await asyncio.gather(*pending, *calls, return_exceptions=True)
         await asyncio.gather(
             *(connection.close() for connection in tuple(self._connections)),
             return_exceptions=True,
