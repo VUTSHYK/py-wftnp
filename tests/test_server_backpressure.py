@@ -23,7 +23,10 @@ async def test_write_timeout_closes_stalled_peer():
     reader, writer = await asyncio.open_connection("127.0.0.1", server.port)
     try:
         peer = await asyncio.wait_for(accepted_peer(server), 2)
-        peer.writer.drain = AsyncMock(side_effect=lambda: asyncio.sleep(10))
+        async def stalled_drain():
+            await asyncio.Event().wait()
+
+        peer.writer.drain = AsyncMock(side_effect=stalled_drain)
         with pytest.raises(TimeoutError):
             await peer._send_frame(Opcode.NOTIFY, 0, payload=b"test")
     finally:
