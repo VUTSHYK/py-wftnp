@@ -7,11 +7,22 @@ import contextlib
 import inspect
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
+from enum import IntEnum
 from uuid import UUID
 
 from .exceptions import ProtocolError, WftnpError
 from .models import CharacteristicProperties, Endpoint
-from .protocol import Frame, Opcode, decode_header, encode
+from .protocol import HEADER, Frame, Opcode, decode_header, encode
+
+
+class ResponseCode(IntEnum):
+    SUCCESS = 0
+    INVALID_MESSAGE_TYPE = 1
+    GENERIC_ERROR = 2
+    SERVICE_NOT_FOUND = 3
+    CHARACTERISTIC_NOT_FOUND = 4
+    OPERATION_NOT_SUPPORTED = 5
+    CHARACTERISTIC_WRITE_FAILED = 6
 
 
 @dataclass(slots=True)
@@ -86,7 +97,7 @@ class ServerConnection:
 
     async def _send_frame(
         self,
-        opcode: Opcode,
+        opcode: Opcode | int,
         sequence: int,
         *,
         payload: bytes = b"",
@@ -99,15 +110,21 @@ class ServerConnection:
                 self.writer.write(encode(Frame(opcode, sequence, status, payload)))
                 await self.writer.drain()
 
-    async def _send_error(self, opcode: Opcode, sequence: int) -> None:
-        # The reverse-engineered protocol does not define a richer status vocabulary in
-        # this repository; any nonzero status is interpreted as rejected by the client.
-        await self._send_frame(opcode, sequence, payload=b"", status=1)
+    async def _send_error(
+        self, opcode: Opcode | int, sequence: int, code: ResponseCode = ResponseCode.GENERIC_ERROR
+    ) -> None:
+        await self._send_frame(opcode, sequence, payload=b"", status=int(code))
 
     async def _read_loop(self) -> None:
         try:
             while not self.closed.is_set():
                 data = await self.reader.readexactly(6)
+                # Preserve the raw opcode so unsupported message types can be rejected
+                # with the protocol-defined INVALID_MESSAGE_TYPE response.
+                version, raw_opcode, sequence, _status, _length = HEADER.unpack(data)
+                if version == 1 and raw_opcode not in Opcode._value2member_map_:
+                    await self._send_error(raw_opcode, sequence, ResponseCode.INVALID_MESSAGE_TYPE)
+                    break
                 try:
                     header = decode_header(data)
                 except WftnpError:
@@ -135,7 +152,7 @@ class ServerConnection:
             Opcode.WRITE,
             Opcode.SUBSCRIBE,
         ):
-            await self._send_error(request.opcode, request.sequence)
+            await self._send_error(request.opcode, request.sequence, ResponseCode.INVALID_MESSAGE_TYPE)
             return
 
         try:
@@ -152,7 +169,8 @@ class ServerConnection:
                 service_uuid = UUID(bytes=request.payload)
                 service = self.server.registry.service_for(service_uuid)
                 if service is None:
-                    raise ProtocolError(f"Unknown service UUID {service_uuid}")
+                    await self._send_error(request.opcode, request.sequence, ResponseCode.SERVICE_NOT_FOUND)
+                    return
                 response = service_uuid.bytes + b"".join(
                     characteristic.uuid.bytes + bytes((int(characteristic.properties) & 0xFF,))
                     for characteristic in service.characteristics
@@ -165,8 +183,16 @@ class ServerConnection:
                     raise ProtocolError("READ request payload must be exactly one UUID")
                 characteristic_uuid = UUID(bytes=request.payload)
                 characteristic = self.server.registry.characteristic_for(characteristic_uuid)
-                if characteristic is None or not (characteristic.properties & CharacteristicProperties.READ):
-                    raise ProtocolError(f"Characteristic {characteristic_uuid} is not readable")
+                if characteristic is None:
+                    await self._send_error(
+                        request.opcode, request.sequence, ResponseCode.CHARACTERISTIC_NOT_FOUND
+                    )
+                    return
+                if not (characteristic.properties & CharacteristicProperties.READ):
+                    await self._send_error(
+                        request.opcode, request.sequence, ResponseCode.OPERATION_NOT_SUPPORTED
+                    )
+                    return
                 response = characteristic_uuid.bytes + characteristic.value
                 await self._send_frame(Opcode.READ, request.sequence, payload=response)
                 return
@@ -177,12 +203,26 @@ class ServerConnection:
                 characteristic_uuid = UUID(bytes=request.payload[:16])
                 value = request.payload[16:]
                 characteristic = self.server.registry.characteristic_for(characteristic_uuid)
-                if characteristic is None or not (characteristic.properties & CharacteristicProperties.WRITE):
-                    raise ProtocolError(f"Characteristic {characteristic_uuid} is not writable")
+                if characteristic is None:
+                    await self._send_error(
+                        request.opcode, request.sequence, ResponseCode.CHARACTERISTIC_NOT_FOUND
+                    )
+                    return
+                if not (characteristic.properties & CharacteristicProperties.WRITE):
+                    await self._send_error(
+                        request.opcode, request.sequence, ResponseCode.OPERATION_NOT_SUPPORTED
+                    )
+                    return
                 if characteristic.on_write is not None:
-                    result = characteristic.on_write(value)
-                    if inspect.isawaitable(result):
-                        result = await result
+                    try:
+                        result = characteristic.on_write(value)
+                        if inspect.isawaitable(result):
+                            result = await result
+                    except Exception:
+                        await self._send_error(
+                            request.opcode, request.sequence, ResponseCode.CHARACTERISTIC_WRITE_FAILED
+                        )
+                        return
                     if result is not None:
                         characteristic.value = result
                 else:
@@ -199,12 +239,16 @@ class ServerConnection:
                     raise ProtocolError("SUBSCRIBE enable flag must be 0 or 1")
                 characteristic = self.server.registry.characteristic_for(characteristic_uuid)
                 if characteristic is None:
-                    raise ProtocolError(f"Unknown characteristic UUID {characteristic_uuid}")
+                    await self._send_error(
+                        request.opcode, request.sequence, ResponseCode.CHARACTERISTIC_NOT_FOUND
+                    )
+                    return
                 if enable:
                     if not (characteristic.properties & CharacteristicProperties.NOTIFY):
-                        raise ProtocolError(
-                            f"Characteristic {characteristic_uuid} does not support notifications"
+                        await self._send_error(
+                            request.opcode, request.sequence, ResponseCode.OPERATION_NOT_SUPPORTED
                         )
+                        return
                     self.subscriptions.add(characteristic_uuid)
                     self.server._register_subscription(self, characteristic_uuid)
                 else:
@@ -373,6 +417,7 @@ class WftnpServer:
 
 __all__ = [
     "CharacteristicSpec",
+    "ResponseCode",
     "ServiceSpec",
     "WftnpServer",
 ]
