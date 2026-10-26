@@ -15,7 +15,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install package and test tools
-        run: python -m pip install -e . pytest pytest-asyncio
+        run: python -m pip install -e '.[discovery]' pytest pytest-asyncio
       - name: Server regression tests
         run: python -m pytest -q tests/test_server_transport.py
       - name: Full test suite
