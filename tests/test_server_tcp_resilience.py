@@ -33,9 +33,10 @@ async def test_two_clients_have_independent_subscriptions():
     first_reader, first_writer = await asyncio.open_connection("127.0.0.1", server.port)
     second_reader, second_writer = await asyncio.open_connection("127.0.0.1", server.port)
     try:
-        assert await exchange(
+        subscribed = await exchange(
             first_reader, first_writer, Opcode.SUBSCRIBE, 1, characteristic.bytes + b"\x01"
-        ) == characteristic.bytes
+        )
+        assert subscribed == characteristic.bytes
         await server.notify_characteristic(characteristic, b"one")
         header = decode_header(await asyncio.wait_for(first_reader.readexactly(6), 2))
         assert header.opcode == Opcode.NOTIFY
@@ -46,9 +47,10 @@ async def test_two_clients_have_independent_subscriptions():
             await asyncio.wait_for(second_reader.readexactly(6), 0.1)
         assert await exchange(second_reader, second_writer, Opcode.SERVICES, 2) == service.uuid.bytes
 
-        assert await exchange(
+        unsubscribed = await exchange(
             first_reader, first_writer, Opcode.SUBSCRIBE, 3, characteristic.bytes + b"\x00"
-        ) == characteristic.bytes
+        )
+        assert unsubscribed == characteristic.bytes
         await server.notify_characteristic(characteristic, b"two")
         with pytest.raises(TimeoutError):
             await asyncio.wait_for(first_reader.readexactly(6), 0.1)
