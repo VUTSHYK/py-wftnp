@@ -34,6 +34,7 @@ class CharacteristicSpec:
     properties: CharacteristicProperties | int = CharacteristicProperties.READ
     value: bytes = b""
     on_write: Callable[[bytes], bytes | Awaitable[bytes] | None] | None = None
+    on_write_with_connection: Callable[[ServerConnection, bytes], bytes | Awaitable[bytes] | None] | None = None
 
     def __post_init__(self) -> None:
         self.properties = CharacteristicProperties(self.properties)
@@ -216,9 +217,12 @@ class ServerConnection:
                         request.opcode, request.sequence, ResponseCode.OPERATION_NOT_SUPPORTED
                     )
                     return
-                if characteristic.on_write is not None:
+                if characteristic.on_write is not None or characteristic.on_write_with_connection is not None:
                     try:
-                        result = characteristic.on_write(value)
+                        if characteristic.on_write_with_connection is not None:
+                            result = characteristic.on_write_with_connection(self, value)
+                        else:
+                            result = characteristic.on_write(value)
                         if inspect.isawaitable(result):
                             result = await result
                     except Exception:
@@ -278,6 +282,7 @@ class WftnpServer:
         max_connections: int | None = None,
         idle_timeout: float = 3600.0,
         on_disconnect: Callable[[], None | Awaitable[None]] | None = None,
+        on_disconnect_with_connection: Callable[[ServerConnection], None | Awaitable[None]] | None = None,
         mdns_name: str | None = None,
         mdns_address: str | None = None,
         mdns_serial_number: str | None = None,
@@ -299,6 +304,7 @@ class WftnpServer:
         self.max_connections = max_connections
         self.idle_timeout = idle_timeout
         self.on_disconnect = on_disconnect
+        self.on_disconnect_with_connection = on_disconnect_with_connection
         self.write_timeout = write_timeout
         self.host = host
         self.port = port
@@ -400,6 +406,10 @@ class WftnpServer:
     async def _detach_connection(self, connection: ServerConnection) -> None:
         was_connected = connection in self._connections
         self._connections.discard(connection)
+        if was_connected and self.on_disconnect_with_connection is not None:
+            result = self.on_disconnect_with_connection(connection)
+            if inspect.isawaitable(result):
+                await result
         if was_connected and self.on_disconnect is not None:
             result = self.on_disconnect()
             if inspect.isawaitable(result):
@@ -429,6 +439,12 @@ class WftnpServer:
         except (ConnectionError, OSError, TimeoutError):
             await subscriber.close()
             await self._detach_connection(subscriber)
+
+    async def notify_connection(self, connection: ServerConnection, characteristic_uuid: UUID, value: bytes) -> None:
+        """Notify one subscribed client, without broadcasting control responses."""
+        if connection not in self._connections or self._stopping or self._server is None:
+            return
+        await self._deliver_notification(connection, characteristic_uuid, value)
 
     async def notify_characteristic(self, characteristic_uuid: UUID, value: bytes) -> None:
         if self._stopping or self._server is None:
