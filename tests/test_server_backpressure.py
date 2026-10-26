@@ -23,6 +23,7 @@ async def test_write_timeout_closes_stalled_peer():
     reader, writer = await asyncio.open_connection("127.0.0.1", server.port)
     try:
         peer = await asyncio.wait_for(accepted_peer(server), 2)
+
         async def stalled_drain():
             await asyncio.Event().wait()
 
