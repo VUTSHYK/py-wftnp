@@ -97,7 +97,7 @@ class ServerConnection:
 
     async def _send_frame(
         self,
-        opcode: Opcode,
+        opcode: Opcode | int,
         sequence: int,
         *,
         payload: bytes = b"",
