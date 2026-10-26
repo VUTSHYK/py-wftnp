@@ -68,18 +68,21 @@ class ServerConnection:
         self.subscriptions: set[UUID] = set()
         self.closed = asyncio.Event()
         self._lock = asyncio.Lock()
+        self._close_lock = asyncio.Lock()
         self._task = asyncio.create_task(self._read_loop(), name="wftnp-server-connection")
 
     async def close(self) -> None:
-        if self.closed.is_set():
-            return
-        self.closed.set()
-        self.writer.close()
-        self._task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await self._task
-        with contextlib.suppress(ConnectionError, OSError):
-            await self.writer.wait_closed()
+        async with self._close_lock:
+            self.closed.set()
+            self.writer.close()
+            if self._task is not asyncio.current_task():
+                if not self._task.done():
+                    self._task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await self._task
+            with contextlib.suppress(ConnectionError, OSError, TimeoutError):
+                async with asyncio.timeout(self.server.write_timeout):
+                    await self.writer.wait_closed()
 
     async def _send_frame(
         self,
@@ -89,9 +92,12 @@ class ServerConnection:
         payload: bytes = b"",
         status: int = 0,
     ) -> None:
-        async with self._lock:
-            self.writer.write(encode(Frame(opcode, sequence, status, payload)))
-            await self.writer.drain()
+        async with asyncio.timeout(self.server.write_timeout):
+            async with self._lock:
+                if self.closed.is_set():
+                    raise ConnectionError("WFTNP connection is closed")
+                self.writer.write(encode(Frame(opcode, sequence, status, payload)))
+                await self.writer.drain()
 
     async def _send_error(self, opcode: Opcode, sequence: int) -> None:
         # The reverse-engineered protocol does not define a richer status vocabulary in
@@ -220,7 +226,12 @@ class WftnpServer:
         host: str = "127.0.0.1",
         port: int = 36866,
         services: Iterable[ServiceSpec] | None = None,
+        write_timeout: float = 2.0,
+        max_pending_notifications: int = 64,
     ) -> None:
+        if write_timeout <= 0 or max_pending_notifications < 1:
+            raise ValueError("write_timeout must be positive and notification limit at least one")
+        self.write_timeout = write_timeout
         self.host = host
         self.port = port
         self.registry = _ServerRegistry(services or ())
@@ -228,6 +239,10 @@ class WftnpServer:
         self._connections: set[ServerConnection] = set()
         self._subscriptions: dict[UUID, set[ServerConnection]] = {}
         self._started = asyncio.Event()
+        self._stopping = False
+        self._notify_tasks: set[asyncio.Task[None]] = set()
+        self._notify_slots = asyncio.Semaphore(max_pending_notifications)
+        self._notify_calls: set[asyncio.Task[None]] = set()
 
     @property
     def endpoint(self) -> Endpoint:
@@ -240,6 +255,7 @@ class WftnpServer:
     async def start(self) -> None:
         if self._server is not None:
             return
+        self._stopping = False
         self._server = await asyncio.start_server(self._accept, self.host, self.port)
         sock = self._server.sockets[0]
         if self.port == 0:
@@ -249,11 +265,22 @@ class WftnpServer:
     async def stop(self) -> None:
         if self._server is None:
             return
-        self._server.close()
-        await self._server.wait_closed()
+        self._stopping = True
+        server = self._server
+        server.close()
+        await server.wait_closed()
         self._server = None
-        tasks = tuple(connection.close() for connection in tuple(self._connections))
-        await asyncio.gather(*tasks, return_exceptions=True)
+        pending = tuple(self._notify_tasks)
+        for task in pending:
+            task.cancel()
+        calls = tuple(self._notify_calls)
+        for task in calls:
+            task.cancel()
+        await asyncio.gather(*pending, *calls, return_exceptions=True)
+        await asyncio.gather(
+            *(connection.close() for connection in tuple(self._connections)),
+            return_exceptions=True,
+        )
         self._subscriptions.clear()
         self._connections.clear()
         self._started.clear()
@@ -270,6 +297,9 @@ class WftnpServer:
         reader: asyncio.StreamReader,
         writer: asyncio.StreamWriter,
     ) -> None:
+        if self._stopping or self._server is None:
+            writer.close()
+            return
         connection = ServerConnection(self, reader, writer)
         self._connections.add(connection)
 
@@ -290,10 +320,53 @@ class WftnpServer:
         if not subscribers:
             self._subscriptions.pop(characteristic_uuid, None)
 
-    async def notify_characteristic(self, characteristic_uuid: UUID, value: bytes) -> None:
-        subscribers = tuple(self._subscriptions.get(characteristic_uuid, ()))
-        for subscriber in subscribers:
+    async def _deliver_notification(
+        self, subscriber: ServerConnection, characteristic_uuid: UUID, value: bytes
+    ) -> None:
+        try:
+            if subscriber.closed.is_set() or characteristic_uuid not in subscriber.subscriptions:
+                return
             await subscriber._send_frame(Opcode.NOTIFY, 0, payload=characteristic_uuid.bytes + value)
+        except (ConnectionError, OSError, TimeoutError):
+            await subscriber.close()
+            await self._detach_connection(subscriber)
+
+    async def notify_characteristic(self, characteristic_uuid: UUID, value: bytes) -> None:
+        if self._stopping or self._server is None:
+            return
+        caller = asyncio.current_task()
+        if caller is not None:
+            self._notify_calls.add(caller)
+        subscribers = tuple(self._subscriptions.get(characteristic_uuid, ()))
+        tasks: list[asyncio.Task[None]] = []
+        try:
+            for subscriber in subscribers:
+                await self._notify_slots.acquire()
+                if self._stopping:
+                    self._notify_slots.release()
+                    break
+                task = asyncio.create_task(
+                    self._deliver_notification(subscriber, characteristic_uuid, value),
+                    name="wftnp-server-notify",
+                )
+                self._notify_tasks.add(task)
+                task.add_done_callback(self._notification_done)
+                tasks.append(task)
+            await asyncio.gather(*tasks, return_exceptions=True)
+        except asyncio.CancelledError:
+            if not self._stopping:
+                raise
+        finally:
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+            if caller is not None:
+                self._notify_calls.discard(caller)
+
+    def _notification_done(self, task: asyncio.Task[None]) -> None:
+        self._notify_tasks.discard(task)
+        self._notify_slots.release()
+        if not task.cancelled():
+            task.exception()  # Observe unexpected failures instead of leaking task exceptions.
 
 
 __all__ = [
