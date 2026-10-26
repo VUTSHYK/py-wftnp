@@ -91,7 +91,12 @@ async def test_failed_notification_detaches_only_failed_peer(transport, monkeypa
     a, wa = await subscribe(transport)
     b, wb = await subscribe(transport)
     peers = tuple(transport._connections)
-    bad = next(c for c in peers if c.writer is not None and c.writer.get_extra_info("peername")[1] == wa.get_extra_info("sockname")[1])
+    bad = next(
+        c
+        for c in peers
+        if c.writer is not None
+        and c.writer.get_extra_info("peername")[1] == wa.get_extra_info("sockname")[1]
+    )
     original = bad._send_frame
 
     async def fail(opcode, sequence, *, payload=b"", status=0):
