@@ -15,9 +15,7 @@ SPEC.loader.exec_module(module)
 
 
 def test_speed_only():
-    assert module.encode_indoor_bike_data(module.IndoorBikeSample(25.5)) == bytes.fromhex(
-        "0000f609"
-    )
+    assert module.encode_indoor_bike_data(module.IndoorBikeSample(25.5)) == bytes.fromhex("0000f609")
 
 
 def test_speed_cadence_power():
