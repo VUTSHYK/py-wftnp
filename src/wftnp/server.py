@@ -345,7 +345,7 @@ class WftnpServer:
                 self._notify_tasks.add(task)
                 task.add_done_callback(self._notification_done)
                 tasks.append(task)
-            await asyncio.gather(*tasks)
+            await asyncio.gather(*tasks, return_exceptions=True)
         finally:
             if tasks:
                 await asyncio.gather(*tasks, return_exceptions=True)
