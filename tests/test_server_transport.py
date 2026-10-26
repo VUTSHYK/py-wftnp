@@ -67,6 +67,7 @@ async def test_multiple_subscribers_and_notify_wire(transport):
         expected = (1, 6, 0, 0, CHAR.bytes + b"data")
         assert await frame(a) == expected
         assert await frame(b) == expected
+        await asyncio.sleep(0)  # Let completion callbacks retire tracked tasks.
         assert not transport._notify_tasks
     finally:
         wa.close()
