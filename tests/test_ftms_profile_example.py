@@ -1,6 +1,7 @@
 """FTMS Indoor Bike Data example encoding regression tests."""
 
 import importlib.util
+import sys
 from pathlib import Path
 
 import pytest
@@ -8,8 +9,6 @@ import pytest
 MODULE_PATH = Path(__file__).resolve().parents[1] / "examples" / "ftms_profile.py"
 SPEC = importlib.util.spec_from_file_location("ftms_profile_example", MODULE_PATH)
 assert SPEC is not None and SPEC.loader is not None
-import sys
-
 module = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = module
 SPEC.loader.exec_module(module)
