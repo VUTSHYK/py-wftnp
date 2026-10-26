@@ -18,6 +18,7 @@ async def test_advertisement_starts_after_tcp_and_stops_before_close():
         mdns_name="Test Trainer",
         mdns_address="127.0.0.1",
     )
+
     async def check_start(advertisement):
         assert server._server is not None
         assert server.port > 0
