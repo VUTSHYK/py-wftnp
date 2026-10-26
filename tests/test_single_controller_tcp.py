@@ -6,8 +6,12 @@ from uuid import UUID
 import pytest
 
 from wftnp import (
-    CharacteristicProperties, CharacteristicSpec, Endpoint,
-    ServiceSpec, WftnpClient, WftnpServer,
+    CharacteristicProperties,
+    CharacteristicSpec,
+    Endpoint,
+    ServiceSpec,
+    WftnpClient,
+    WftnpServer,
 )
 
 SERVICE = UUID("00001826-0000-1000-8000-00805f9b34fb")
@@ -20,6 +24,7 @@ async def test_single_controller_observers_and_handover():
     owner = None
     accepted = []
     disconnected = []
+    owner_released = asyncio.Event()
     server = None
 
     async def on_write(connection, value):
@@ -40,6 +45,7 @@ async def test_single_controller_observers_and_handover():
         disconnected.append(connection)
         if owner is connection:
             owner = None
+            owner_released.set()
 
     server = WftnpServer(
         port=0,
@@ -75,9 +81,7 @@ async def test_single_controller_observers_and_handover():
             assert (await asyncio.wait_for(anext(a_control), 3)).value == b"\x80\x05\x01"
             assert len(accepted) == 1
             await a.stop()
-            async with asyncio.timeout(3):
-                while owner is not None:
-                    await asyncio.sleep(0.01)
+            await asyncio.wait_for(owner_released.wait(), 3)
             await b.write_characteristic(CONTROL, b"\x00")
             assert (await asyncio.wait_for(anext(b_control), 3)).value == b"\x80\x00\x01"
             assert owner is not None
