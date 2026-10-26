@@ -28,7 +28,13 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run ty check src
-      - run: uv run pytest --cov=wftnp --cov-report=term-missing
+      - name: Pytest with per-test progress and hang diagnostics
+        env:
+          PYTHONUNBUFFERED: '1'
+          PYTEST_ADDOPTS: '-vv -s --durations=20'
+        run: |
+          uv run python -m pytest --cov=wftnp --cov-report=term-missing --faulthandler-timeout=90
+        timeout-minutes: 12
   package:
     runs-on: ubuntu-latest
     steps:
