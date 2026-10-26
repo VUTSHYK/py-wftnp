@@ -48,8 +48,14 @@ async def test_server_response_codes():
         assert await status(Opcode.READ, writable_id.bytes) == ResponseCode.OPERATION_NOT_SUPPORTED
         assert await status(Opcode.WRITE, readable_id.bytes + b"x") == ResponseCode.OPERATION_NOT_SUPPORTED
         assert await status(Opcode.WRITE, failing_id.bytes + b"x") == ResponseCode.CHARACTERISTIC_WRITE_FAILED
-        assert await status(Opcode.SUBSCRIBE, uuid4().bytes + b"\x01") == ResponseCode.CHARACTERISTIC_NOT_FOUND
-        assert await status(Opcode.SUBSCRIBE, readable_id.bytes + b"\x01") == ResponseCode.OPERATION_NOT_SUPPORTED
+        assert (
+            await status(Opcode.SUBSCRIBE, uuid4().bytes + b"\x01")
+            == ResponseCode.CHARACTERISTIC_NOT_FOUND
+        )
+        assert (
+            await status(Opcode.SUBSCRIBE, readable_id.bytes + b"\x01")
+            == ResponseCode.OPERATION_NOT_SUPPORTED
+        )
         assert await status(Opcode.WRITE, writable_id.bytes + b"ok") == ResponseCode.SUCCESS
         # A failed write must not kill the connection.
         assert await status(Opcode.READ, readable_id.bytes) == ResponseCode.SUCCESS
