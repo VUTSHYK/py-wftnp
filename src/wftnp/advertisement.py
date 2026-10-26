@@ -59,7 +59,12 @@ class ServerAdvertisement:
         info = ServiceInfo(
             SERVICE_TYPE,
             f"{self.name}.{SERVICE_TYPE}",
-            addresses=[socket.inet_pton(socket.AF_INET6 if ":" in self.address else socket.AF_INET, self.address)],
+            addresses=[
+                socket.inet_pton(
+                    socket.AF_INET6 if ":" in self.address else socket.AF_INET,
+                    self.address,
+                )
+            ],
             port=self.port,
             properties=properties,
             server=f"{socket.gethostname().split('.')[0]}.local.",
