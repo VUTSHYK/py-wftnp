@@ -184,10 +184,14 @@ class ServerConnection:
                 characteristic_uuid = UUID(bytes=request.payload)
                 characteristic = self.server.registry.characteristic_for(characteristic_uuid)
                 if characteristic is None:
-                    await self._send_error(request.opcode, request.sequence, ResponseCode.CHARACTERISTIC_NOT_FOUND)
+                    await self._send_error(
+                        request.opcode, request.sequence, ResponseCode.CHARACTERISTIC_NOT_FOUND
+                    )
                     return
                 if not (characteristic.properties & CharacteristicProperties.READ):
-                    await self._send_error(request.opcode, request.sequence, ResponseCode.OPERATION_NOT_SUPPORTED)
+                    await self._send_error(
+                        request.opcode, request.sequence, ResponseCode.OPERATION_NOT_SUPPORTED
+                    )
                     return
                 response = characteristic_uuid.bytes + characteristic.value
                 await self._send_frame(Opcode.READ, request.sequence, payload=response)
@@ -200,10 +204,14 @@ class ServerConnection:
                 value = request.payload[16:]
                 characteristic = self.server.registry.characteristic_for(characteristic_uuid)
                 if characteristic is None:
-                    await self._send_error(request.opcode, request.sequence, ResponseCode.CHARACTERISTIC_NOT_FOUND)
+                    await self._send_error(
+                        request.opcode, request.sequence, ResponseCode.CHARACTERISTIC_NOT_FOUND
+                    )
                     return
                 if not (characteristic.properties & CharacteristicProperties.WRITE):
-                    await self._send_error(request.opcode, request.sequence, ResponseCode.OPERATION_NOT_SUPPORTED)
+                    await self._send_error(
+                        request.opcode, request.sequence, ResponseCode.OPERATION_NOT_SUPPORTED
+                    )
                     return
                 if characteristic.on_write is not None:
                     try:
@@ -231,7 +239,9 @@ class ServerConnection:
                     raise ProtocolError("SUBSCRIBE enable flag must be 0 or 1")
                 characteristic = self.server.registry.characteristic_for(characteristic_uuid)
                 if characteristic is None:
-                    await self._send_error(request.opcode, request.sequence, ResponseCode.CHARACTERISTIC_NOT_FOUND)
+                    await self._send_error(
+                        request.opcode, request.sequence, ResponseCode.CHARACTERISTIC_NOT_FOUND
+                    )
                     return
                 if enable:
                     if not (characteristic.properties & CharacteristicProperties.NOTIFY):
