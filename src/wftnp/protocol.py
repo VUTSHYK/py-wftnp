@@ -31,7 +31,7 @@ class Header:
 
 @dataclass(frozen=True, slots=True)
 class Frame:
-    opcode: Opcode
+    opcode: Opcode | int
     sequence: int
     status: int = 0
     payload: bytes = b""
