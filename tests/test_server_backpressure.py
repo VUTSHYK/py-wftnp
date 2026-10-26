@@ -7,7 +7,13 @@ from uuid import uuid4
 import pytest
 
 from wftnp.protocol import Opcode
-from wftnp.server import ServerConnection, WftnpServer
+from wftnp.server import WftnpServer
+
+
+async def accepted_peer(server):
+    while not server.connections:  # noqa: ASYNC110 - await callback registration from asyncio.start_server
+        await asyncio.sleep(0.01)
+    return server.connections[0]
 
 
 @pytest.mark.asyncio
@@ -16,10 +22,7 @@ async def test_write_timeout_closes_stalled_peer():
     await server.start()
     reader, writer = await asyncio.open_connection("127.0.0.1", server.port)
     try:
-        async with asyncio.timeout(2):
-            while not server.connections:
-                await asyncio.sleep(0.01)
-        peer = server.connections[0]
+        peer = await asyncio.wait_for(accepted_peer(server), 2)
         peer.writer.drain = AsyncMock(side_effect=lambda: asyncio.sleep(10))
         with pytest.raises(TimeoutError):
             await peer._send_frame(Opcode.NOTIFY, 0, payload=b"test")
@@ -38,10 +41,7 @@ async def test_notification_limit_blocks_producer_until_slot_frees():
     release = asyncio.Event()
     entered = asyncio.Event()
     try:
-        async with asyncio.timeout(2):
-            while not server.connections:
-                await asyncio.sleep(0.01)
-        peer = server.connections[0]
+        peer = await asyncio.wait_for(accepted_peer(server), 2)
         peer.subscriptions.add(characteristic)
         server._register_subscription(peer, characteristic)
 
@@ -74,10 +74,7 @@ async def test_shutdown_cancels_blocked_notification():
     reader, writer = await asyncio.open_connection("127.0.0.1", server.port)
     entered = asyncio.Event()
     try:
-        async with asyncio.timeout(2):
-            while not server.connections:
-                await asyncio.sleep(0.01)
-        peer = server.connections[0]
+        peer = await asyncio.wait_for(accepted_peer(server), 2)
         peer.subscriptions.add(characteristic)
         server._register_subscription(peer, characteristic)
 
