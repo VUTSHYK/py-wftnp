@@ -12,7 +12,9 @@ async def test_second_client_rejected_and_disconnect_releases():
     disconnected = []
     disconnected_event = asyncio.Event()
     server = WftnpServer(
-        port=0, max_connections=1, idle_timeout=60,
+        port=0,
+        max_connections=1,
+        idle_timeout=60,
         on_disconnect=lambda: (disconnected.append(True), disconnected_event.set()),
     )
     await server.start()
@@ -42,7 +44,9 @@ async def test_second_client_rejected_and_disconnect_releases():
 async def test_idle_connection_expires():
     disconnected = []
     server = WftnpServer(
-        port=0, max_connections=1, idle_timeout=0.05,
+        port=0,
+        max_connections=1,
+        idle_timeout=0.05,
         on_disconnect=lambda: disconnected.append(True),
     )
     await server.start()
