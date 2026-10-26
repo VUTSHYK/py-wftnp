@@ -49,11 +49,19 @@ async def test_single_controller_observers_and_handover():
 
     server = WftnpServer(
         port=0,
-        services=[ServiceSpec(SERVICE, (
-            CharacteristicSpec(CONTROL, CharacteristicProperties.WRITE | CharacteristicProperties.NOTIFY,
-                               on_write_with_connection=on_write),
-            CharacteristicSpec(BIKE, CharacteristicProperties.NOTIFY),
-        ))],
+        services=[
+            ServiceSpec(
+                SERVICE,
+                (
+                    CharacteristicSpec(
+                        CONTROL,
+                        CharacteristicProperties.WRITE | CharacteristicProperties.NOTIFY,
+                        on_write_with_connection=on_write,
+                    ),
+                    CharacteristicSpec(BIKE, CharacteristicProperties.NOTIFY),
+                ),
+            )
+        ],
         on_disconnect_with_connection=on_disconnect,
         idle_timeout=60,
     )
@@ -65,8 +73,12 @@ async def test_single_controller_observers_and_handover():
         await b.start()
         await a.wait_ready(timeout=3)
         await b.wait_ready(timeout=3)
-        async with await a.subscribe(CONTROL) as a_control, await b.subscribe(CONTROL) as b_control, \
-                   await a.subscribe(BIKE) as a_bike, await b.subscribe(BIKE) as b_bike:
+        async with (
+            await a.subscribe(CONTROL) as a_control,
+            await b.subscribe(CONTROL) as b_control,
+            await a.subscribe(BIKE) as a_bike,
+            await b.subscribe(BIKE) as b_bike,
+        ):
             await a.write_characteristic(CONTROL, b"\x00")
             assert (await asyncio.wait_for(anext(a_control), 3)).value == b"\x80\x00\x01"
             await b.write_characteristic(CONTROL, b"\x00")
