@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from uuid import UUID
 
+from .advertisement import ServerAdvertisement
 from .exceptions import ProtocolError, WftnpError
 from .models import CharacteristicProperties, Endpoint
 from .protocol import HEADER, Frame, Opcode, decode_header, encode
@@ -272,9 +273,20 @@ class WftnpServer:
         services: Iterable[ServiceSpec] | None = None,
         write_timeout: float = 2.0,
         max_pending_notifications: int = 64,
+        mdns_name: str | None = None,
+        mdns_address: str | None = None,
+        mdns_serial_number: str | None = None,
+        mdns_mac_address: str | None = None,
     ) -> None:
         if write_timeout <= 0 or max_pending_notifications < 1:
             raise ValueError("write_timeout must be positive and notification limit at least one")
+        if mdns_name is not None and mdns_address is None:
+            raise ValueError("mdns_address is required when mdns_name is set")
+        self._mdns_name = mdns_name
+        self._mdns_address = mdns_address
+        self._mdns_serial_number = mdns_serial_number
+        self._mdns_mac_address = mdns_mac_address
+        self._advertisement: ServerAdvertisement | None = None
         self.write_timeout = write_timeout
         self.host = host
         self.port = port
@@ -304,12 +316,33 @@ class WftnpServer:
         sock = self._server.sockets[0]
         if self.port == 0:
             self.port = sock.getsockname()[1]
+        if self._mdns_name is not None and self._mdns_address is not None:
+            advertisement = ServerAdvertisement(
+                name=self._mdns_name,
+                address=self._mdns_address,
+                port=self.port,
+                service_uuids=self.registry.service_uuids(),
+                serial_number=self._mdns_serial_number,
+                mac_address=self._mdns_mac_address,
+            )
+            try:
+                await advertisement.start()
+            except BaseException:
+                self._server.close()
+                await self._server.wait_closed()
+                self._server = None
+                raise
+            self._advertisement = advertisement
         self._started.set()
 
     async def stop(self) -> None:
         if self._server is None:
             return
         self._stopping = True
+        advertisement = self._advertisement
+        self._advertisement = None
+        if advertisement is not None:
+            await advertisement.stop()
         server = self._server
         server.close()
         # Python 3.12+ wait_closed() may wait for active client handlers.
