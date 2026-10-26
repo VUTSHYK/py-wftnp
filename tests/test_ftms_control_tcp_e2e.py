@@ -53,9 +53,7 @@ async def test_control_point_erg_and_grade_over_tcp():
         await client.wait_ready(timeout=3)
         await client.write_characteristic(ftms.FITNESS_MACHINE_CONTROL_POINT, b"\x00")
         await client.write_characteristic(ftms.FITNESS_MACHINE_CONTROL_POINT, bytes.fromhex("05fa00"))
-        await client.write_characteristic(
-            ftms.FITNESS_MACHINE_CONTROL_POINT, bytes.fromhex("11dc0558022832")
-        )
+        await client.write_characteristic(ftms.FITNESS_MACHINE_CONTROL_POINT, bytes.fromhex("11dc0558022832"))
 
         assert [command.opcode for command in commands] == [
             ftms.ControlOpcode.REQUEST_CONTROL,
