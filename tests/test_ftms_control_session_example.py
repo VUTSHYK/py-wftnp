@@ -48,7 +48,7 @@ def test_reset_and_disconnect_revoke_control():
 
 
 @pytest.mark.parametrize(
-    ("request", "expected"),
+    ("payload", "expected"),
     [
         (b"", 3),
         (b"\xff", 2),
@@ -56,9 +56,9 @@ def test_reset_and_disconnect_revoke_control():
         (b"\x00\x00", 3),
     ],
 )
-def test_bad_requests_have_ftms_result_codes(request, expected):
+def test_bad_requests_have_ftms_result_codes(payload, expected):
     session = ftms.ControlSession()
-    result, command = session.handle(request)
+    result, command = session.handle(payload)
     assert int(result) == expected
     assert command is None
 
