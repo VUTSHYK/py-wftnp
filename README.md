@@ -63,6 +63,32 @@ async def find_devices():
         print(advertisement.name, advertisement.endpoint)
 ```
 
+## WFTNP server advertisement (opt-in)
+
+The TCP server can advertise itself on the LAN using mDNS when the optional
+`discovery` dependency is installed. Advertising starts only after the TCP
+listener is ready and is removed before the listener stops. The address must
+be a reachable interface address; do not use `0.0.0.0` or `::`.
+
+```python
+from wftnp.server import WftnpServer
+
+server = WftnpServer(
+    host="0.0.0.0",
+    port=36866,
+    mdns_name="FortiusANT Trainer",
+    mdns_address="192.168.1.100",  # Replace with the Raspberry Pi LAN address.
+)
+await server.start()
+# ...
+await server.stop()
+```
+
+This advertises `_wahoo-fitness-tnp._tcp.local.`. No advertisement is
+published unless `mdns_name` is configured. WFTNP service metadata is derived
+from the configured service registry. Discovery alone does not implement the
+FTMS profile or guarantee that Zwift recognizes the trainer.
+
 ## Development
 
 ```sh
