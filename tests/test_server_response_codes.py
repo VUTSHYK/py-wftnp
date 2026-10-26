@@ -23,11 +23,16 @@ async def test_server_response_codes():
     server = WftnpServer(
         host="127.0.0.1",
         port=0,
-        services=[ServiceSpec(service_id, (
-            CharacteristicSpec(readable_id, CharacteristicProperties.READ, b"ok"),
-            CharacteristicSpec(writable_id, CharacteristicProperties.WRITE),
-            CharacteristicSpec(failing_id, CharacteristicProperties.WRITE, on_write=fail_write),
-        ))],
+        services=[
+            ServiceSpec(
+                service_id,
+                (
+                    CharacteristicSpec(readable_id, CharacteristicProperties.READ, b"ok"),
+                    CharacteristicSpec(writable_id, CharacteristicProperties.WRITE),
+                    CharacteristicSpec(failing_id, CharacteristicProperties.WRITE, on_write=fail_write),
+                ),
+            )
+        ],
     )
     await server.start()
     reader, writer = await asyncio.open_connection("127.0.0.1", server.port)
@@ -49,8 +54,7 @@ async def test_server_response_codes():
         assert await status(Opcode.WRITE, readable_id.bytes + b"x") == ResponseCode.OPERATION_NOT_SUPPORTED
         assert await status(Opcode.WRITE, failing_id.bytes + b"x") == ResponseCode.CHARACTERISTIC_WRITE_FAILED
         assert (
-            await status(Opcode.SUBSCRIBE, uuid4().bytes + b"\x01")
-            == ResponseCode.CHARACTERISTIC_NOT_FOUND
+            await status(Opcode.SUBSCRIBE, uuid4().bytes + b"\x01") == ResponseCode.CHARACTERISTIC_NOT_FOUND
         )
         assert (
             await status(Opcode.SUBSCRIBE, readable_id.bytes + b"\x01")
