@@ -59,3 +59,52 @@ def decode_control_point(value: bytes) -> ControlCommand:
             wind_resistance=cw / 100,
         )
     return ControlCommand(opcode)
+
+
+class ControlResult(IntEnum):
+    SUCCESS = 0x01
+    NOT_SUPPORTED = 0x02
+    INVALID_PARAMETER = 0x03
+    OPERATION_FAILED = 0x04
+    CONTROL_NOT_PERMITTED = 0x05
+
+
+def encode_control_response(request_opcode: int, result: ControlResult) -> bytes:
+    """FTMS Control Point response: Response Code (0x80), request opcode, result."""
+    if not 0 <= request_opcode <= 255:
+        raise ValueError("request opcode must fit in one byte")
+    return bytes((0x80, request_opcode, result))
+
+
+class ControlSession:
+    """Application-layer control gate for one logical controller.
+
+    The caller owns connection/session lifetime and must call release() on
+    disconnect. No trainer commands are executed here.
+    """
+
+    def __init__(self) -> None:
+        self.has_control = False
+
+    def release(self) -> None:
+        self.has_control = False
+
+    def handle(self, value: bytes) -> tuple[ControlResult, ControlCommand | None]:
+        """Validate request and return (FTMS result, accepted command)."""
+        if not value:
+            return ControlResult.INVALID_PARAMETER, None
+        try:
+            command = decode_control_point(value)
+        except ValueError as exc:
+            if str(exc).startswith("unsupported FTMS opcode"):
+                return ControlResult.NOT_SUPPORTED, None
+            return ControlResult.INVALID_PARAMETER, None
+
+        if command.opcode == ControlOpcode.REQUEST_CONTROL:
+            self.has_control = True
+            return ControlResult.SUCCESS, command
+        if not self.has_control:
+            return ControlResult.CONTROL_NOT_PERMITTED, None
+        if command.opcode == ControlOpcode.RESET:
+            self.has_control = False
+        return ControlResult.SUCCESS, command
