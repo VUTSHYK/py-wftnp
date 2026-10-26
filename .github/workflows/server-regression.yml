@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - fix/server-lifecycle-race
+      - master
   workflow_dispatch:
 
 jobs:
