@@ -114,7 +114,10 @@ async def test_failed_notification_detaches_only_failed_peer(transport, monkeypa
 async def test_slow_peer_timeout_does_not_block_other_peer(transport, monkeypatch):
     a, wa = await subscribe(transport)
     b, wb = await subscribe(transport)
-    bad = next(c for c in transport._connections if c.writer.get_extra_info("peername")[1] == wa.get_extra_info("sockname")[1])
+    bad = next(
+        c for c in transport._connections
+        if c.writer.get_extra_info("peername")[1] == wa.get_extra_info("sockname")[1]
+    )
     original = bad._send_frame
 
     async def stall(opcode, sequence, *, payload=b"", status=0):
@@ -126,13 +129,40 @@ async def test_slow_peer_timeout_does_not_block_other_peer(transport, monkeypatc
     try:
         task = asyncio.create_task(transport.notify_characteristic(CHAR, b"ok"))
         assert await frame(b) == (1, 6, 0, 0, CHAR.bytes + b"ok")
-        await transport.stop()
+        assert not task.done()
+        await asyncio.wait_for(transport.stop(), 1)
         await asyncio.wait_for(task, 1)
         assert not transport._notify_tasks
+        assert not transport._notify_calls
     finally:
         wa.close()
         wb.close()
         await asyncio.gather(wa.wait_closed(), wb.wait_closed())
+
+
+async def test_stop_with_saturated_notification_slots(transport, monkeypatch):
+    transport._notify_slots = asyncio.Semaphore(1)
+    reader, writer = await subscribe(transport)
+    peer = transport.connections[0]
+    entered = asyncio.Event()
+
+    async def stall(opcode, sequence, *, payload=b"", status=0):
+        entered.set()
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(peer, "_send_frame", stall)
+    first = asyncio.create_task(transport.notify_characteristic(CHAR, b"one"))
+    await asyncio.wait_for(entered.wait(), 1)
+    second = asyncio.create_task(transport.notify_characteristic(CHAR, b"two"))
+    try:
+        await asyncio.sleep(0)
+        await asyncio.wait_for(transport.stop(), 1)
+        await asyncio.wait_for(asyncio.gather(first, second), 1)
+        assert not transport._notify_calls
+        assert not transport._notify_tasks
+    finally:
+        writer.close()
+        await writer.wait_closed()
 
 
 async def test_stop_and_restart(transport):
