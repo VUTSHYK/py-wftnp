@@ -34,7 +34,9 @@ class CharacteristicSpec:
     properties: CharacteristicProperties | int = CharacteristicProperties.READ
     value: bytes = b""
     on_write: Callable[[bytes], bytes | Awaitable[bytes] | None] | None = None
-    on_write_with_connection: Callable[[ServerConnection, bytes], bytes | Awaitable[bytes] | None] | None = None
+    on_write_with_connection: (
+        Callable[[ServerConnection, bytes], bytes | Awaitable[bytes] | None] | None
+    ) = None
 
     def __post_init__(self) -> None:
         self.properties = CharacteristicProperties(self.properties)
@@ -440,7 +442,9 @@ class WftnpServer:
             await subscriber.close()
             await self._detach_connection(subscriber)
 
-    async def notify_connection(self, connection: ServerConnection, characteristic_uuid: UUID, value: bytes) -> None:
+    async def notify_connection(
+        self, connection: ServerConnection, characteristic_uuid: UUID, value: bytes
+    ) -> None:
         """Notify one subscribed client, without broadcasting control responses."""
         if connection not in self._connections or self._stopping or self._server is None:
             return
