@@ -105,6 +105,35 @@ fill in the device endpoints, and run `task test:hardware`. The configuration an
 JUnit report are gitignored. Normal tests and hosted CI never connect to equipment.
 See [hardware validation](docs/hardware-validation.md) for scope and results.
 
+## Project background and acknowledgements
+
+This repository builds on the original [binarylogic/py-wftnp](https://github.com/binarylogic/py-wftnp)
+Python WFTNP client library. We extended that foundation with **WFTNP TCP server
+functionality**, allowing Python applications to expose services and
+characteristics over a network, including FTMS-compatible fitness services.
+
+The server extensions were developed for
+[FortiusANT](https://github.com/VUTSHYK/FortiusANT), with the aim of making
+Tacx trainers accessible to compatible fitness applications over WFTNP.
+This avoids requiring Bluetooth or ANT+ for the *application-facing* link;
+the trainer-side connection may still use ANT+.
+
+In addition to the original client implementation, the server development drew
+on the publicly available reverse-engineered protocol documentation in
+[elfrances/wahoo-fitness-tnp](https://github.com/elfrances/wahoo-fitness-tnp).
+That research helped inform protocol framing, message structures, discovery,
+characteristic operations, and notifications.
+
+**Credits:**
+- [binarylogic/py-wftnp](https://github.com/binarylogic/py-wftnp) — original
+  Python library and client-side foundation.
+- [elfrances/wahoo-fitness-tnp](https://github.com/elfrances/wahoo-fitness-tnp) —
+  publicly shared reverse-engineered WFTNP protocol information.
+
+This is an independent, unofficial implementation, not affiliated with or
+endorsed by Wahoo Fitness. Automated TCP tests do not establish compatibility
+with every real Wahoo device or third-party application.
+
 ## Protocol basis
 
 WFTNP is a vendor-originated protocol with an unofficial public description:
