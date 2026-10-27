@@ -81,6 +81,7 @@ class ServerConnection:
         self.reader = reader
         self.writer = writer
         self.subscriptions: set[UUID] = set()
+        self._deferred_write_notifications: list[tuple[UUID, bytes]] | None = None
         self.closed = asyncio.Event()
         self._lock = asyncio.Lock()
         self._close_lock = asyncio.Lock()
@@ -220,6 +221,7 @@ class ServerConnection:
                     )
                     return
                 if characteristic.on_write is not None or characteristic.on_write_with_connection is not None:
+                    self._deferred_write_notifications = []
                     try:
                         if characteristic.on_write_with_connection is not None:
                             result = characteristic.on_write_with_connection(self, value)
@@ -230,6 +232,7 @@ class ServerConnection:
                         if inspect.isawaitable(result):
                             result = await result
                     except Exception:
+                        self._deferred_write_notifications = None
                         await self._send_error(
                             request.opcode, request.sequence, ResponseCode.CHARACTERISTIC_WRITE_FAILED
                         )
@@ -238,7 +241,12 @@ class ServerConnection:
                         characteristic.value = result
                 else:
                     characteristic.value = value
+                pending = self._deferred_write_notifications
+                self._deferred_write_notifications = None
                 await self._send_frame(Opcode.WRITE, request.sequence, payload=characteristic_uuid.bytes)
+                if pending:
+                    for notify_uuid, notify_value in pending:
+                        await self.server._deliver_notification(self, notify_uuid, notify_value)
                 return
 
             if request.opcode == Opcode.SUBSCRIBE:
@@ -449,6 +457,9 @@ class WftnpServer:
     ) -> None:
         """Notify one subscribed client, without broadcasting control responses."""
         if connection not in self._connections or self._stopping or self._server is None:
+            return
+        if connection._deferred_write_notifications is not None and asyncio.current_task() is connection._task:
+            connection._deferred_write_notifications.append((characteristic_uuid, bytes(value)))
             return
         await self._deliver_notification(connection, characteristic_uuid, value)
 
