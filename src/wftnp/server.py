@@ -112,7 +112,9 @@ class ServerConnection:
             async with self._lock:
                 if self.closed.is_set():
                     raise ConnectionError("WFTNP connection is closed")
-                self.writer.write(encode(Frame(opcode, sequence, status, payload)))
+                frame_bytes = encode(Frame(opcode, sequence, status, payload))
+                self.server._diagnostic('TX %s' % frame_bytes.hex(' '), True)
+                self.writer.write(frame_bytes)
                 await self.writer.drain()
 
     async def _send_error(
@@ -143,6 +145,8 @@ class ServerConnection:
                 async with asyncio.timeout(self.server.idle_timeout):
                     payload = await self.reader.readexactly(header.length)
                 request = Frame(header.opcode, header.sequence, header.status, payload)
+                self.server._diagnostic('request opcode=%s sequence=%s length=%s' % (header.opcode.name, header.sequence, len(payload)))
+                self.server._diagnostic('RX %s' % (data + payload).hex(' '), True)
                 await self._handle_request(request)
         except (asyncio.IncompleteReadError, ConnectionError, OSError, TimeoutError):
             pass
@@ -174,6 +178,7 @@ class ServerConnection:
                 if len(request.payload) != 16:
                     raise ProtocolError("CHARACTERISTICS request payload must be exactly one UUID")
                 service_uuid = UUID(bytes=request.payload)
+                self.server._diagnostic('discover characteristics: %s' % service_uuid)
                 service = self.server.registry.service_for(service_uuid)
                 if service is None:
                     await self._send_error(request.opcode, request.sequence, ResponseCode.SERVICE_NOT_FOUND)
@@ -254,6 +259,7 @@ class ServerConnection:
                     raise ProtocolError("SUBSCRIBE request payload must be UUID + enable flag")
                 characteristic_uuid = UUID(bytes=request.payload[:16])
                 enable = request.payload[16]
+                self.server._diagnostic('subscribe %s: %s' % (characteristic_uuid, 'on' if enable else 'off'))
                 if enable not in (0, 1):
                     raise ProtocolError("SUBSCRIBE enable flag must be 0 or 1")
                 characteristic = self.server.registry.characteristic_for(characteristic_uuid)
@@ -299,6 +305,7 @@ class WftnpServer:
         mdns_address: str | None = None,
         mdns_serial_number: str | None = None,
         mdns_mac_address: str | None = None,
+        on_diagnostic: Callable[[str, bool], None] | None = None,
     ) -> None:
         if max_connections is not None and max_connections < 1:
             raise ValueError("max_connections must be positive")
@@ -316,6 +323,7 @@ class WftnpServer:
         self.max_connections = max_connections
         self.idle_timeout = idle_timeout
         self.on_disconnect = on_disconnect
+        self.on_diagnostic = on_diagnostic
         self.on_disconnect_with_connection = on_disconnect_with_connection
         self.write_timeout = write_timeout
         self.host = host
@@ -401,6 +409,13 @@ class WftnpServer:
         except TimeoutError as exc:
             raise TimeoutError("WFTNP server did not start in time") from exc
 
+    def _diagnostic(self, message: str, raw: bool = False) -> None:
+        if self.on_diagnostic is not None:
+            try:
+                self.on_diagnostic(message, raw)
+            except Exception:
+                pass  # Diagnostics must never disrupt the transport.
+
     async def _accept(
         self,
         reader: asyncio.StreamReader,
@@ -414,10 +429,13 @@ class WftnpServer:
             return
         connection = ServerConnection(self, reader, writer)
         self._connections.add(connection)
+        self._diagnostic('TCP connected: %s' % (writer.get_extra_info('peername'),))
 
     async def _detach_connection(self, connection: ServerConnection) -> None:
         was_connected = connection in self._connections
         self._connections.discard(connection)
+        if was_connected:
+            self._diagnostic('TCP disconnected: %s' % (connection.writer.get_extra_info('peername'),))
         if was_connected and self.on_disconnect_with_connection is not None:
             result = self.on_disconnect_with_connection(connection)
             if inspect.isawaitable(result):
