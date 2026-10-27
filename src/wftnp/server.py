@@ -458,7 +458,10 @@ class WftnpServer:
         """Notify one subscribed client, without broadcasting control responses."""
         if connection not in self._connections or self._stopping or self._server is None:
             return
-        if connection._deferred_write_notifications is not None and asyncio.current_task() is connection._task:
+        if (
+            connection._deferred_write_notifications is not None
+            and asyncio.current_task() is connection._task
+        ):
             connection._deferred_write_notifications.append((characteristic_uuid, bytes(value)))
             return
         await self._deliver_notification(connection, characteristic_uuid, value)
