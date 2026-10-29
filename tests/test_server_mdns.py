@@ -1,5 +1,7 @@
-"""WFTNP server mDNS lifecycle without network multicast in CI."""
+"""WFTNP server mDNS lifecycle and real registration tests."""
 
+import asyncio
+import gc
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
@@ -77,3 +79,9 @@ async def test_wahoo_long_service_type_registers_with_real_zeroconf():
         assert advertisement._info.type == SERVICE_TYPE
     finally:
         await advertisement.stop()
+        # Windows asyncio UDP transports may finalize after async_close().
+        # Flush pending callbacks and collect closed sockets before pytest
+        # checks unraisable ResourceWarnings in the next test.
+        await asyncio.sleep(0)
+        gc.collect()
+        await asyncio.sleep(0)
