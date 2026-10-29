@@ -71,7 +71,7 @@ class ServerAdvertisement:
         )
         zeroconf = AsyncZeroconf()
         try:
-            await zeroconf.async_register_service(info)
+            await zeroconf.async_register_service(info, strict=False)
         except BaseException:
             await zeroconf.async_close()
             raise
