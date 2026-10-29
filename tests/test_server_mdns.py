@@ -67,7 +67,6 @@ def test_mdns_requires_explicit_address():
 
 
 @pytest.fixture
-
 def event_loop_policy():
     # Windows Proactor UDP transports can outlive Zeroconf async_close().
     # Use Selector for this real multicast test, matching the POSIX lifecycle.
