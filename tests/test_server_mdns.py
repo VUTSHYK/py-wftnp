@@ -2,6 +2,7 @@
 
 import asyncio
 import gc
+import sys
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
@@ -65,8 +66,18 @@ def test_mdns_requires_explicit_address():
         WftnpServer(mdns_name="Test Trainer")
 
 
+@pytest.fixture
+
+def event_loop_policy():
+    # Windows Proactor UDP transports can outlive Zeroconf async_close().
+    # Use Selector for this real multicast test, matching the POSIX lifecycle.
+    if sys.platform == "win32":
+        return asyncio.WindowsSelectorEventLoopPolicy()
+    return asyncio.get_event_loop_policy()
+
+
 @pytest.mark.asyncio
-async def test_wahoo_long_service_type_registers_with_real_zeroconf():
+async def test_wahoo_long_service_type_registers_with_real_zeroconf(event_loop_policy):
     """The Wahoo DNS-SD service label exceeds RFC 6335's 15-byte limit."""
     from wftnp.advertisement import ServerAdvertisement
     from wftnp.discovery import SERVICE_TYPE
