@@ -1,7 +1,6 @@
 """WFTNP server mDNS lifecycle and real registration tests."""
 
 import asyncio
-import gc
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
