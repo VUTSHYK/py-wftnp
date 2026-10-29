@@ -65,23 +65,24 @@ def test_mdns_requires_explicit_address():
         WftnpServer(mdns_name="Test Trainer")
 
 
-@pytest.mark.asyncio
-async def test_wahoo_long_service_type_registers_with_real_zeroconf():
-    """The Wahoo DNS-SD service label exceeds RFC 6335's 15-byte limit."""
+def test_wahoo_long_service_type_registers_with_real_zeroconf():
+    """Exercise real mDNS registration with a fully owned event loop."""
     from wftnp.advertisement import ServerAdvertisement
     from wftnp.discovery import SERVICE_TYPE
 
-    assert SERVICE_TYPE == "_wahoo-fitness-tnp._tcp.local."
-    advertisement = ServerAdvertisement(name="FortiusANT Test", address="127.0.0.1", port=36866)
-    await advertisement.start()
-    try:
-        assert advertisement._info is not None
-        assert advertisement._info.type == SERVICE_TYPE
-    finally:
-        await advertisement.stop()
-        # Windows asyncio UDP transports may finalize after async_close().
-        # Flush pending callbacks and collect closed sockets before pytest
-        # checks unraisable ResourceWarnings in the next test.
-        await asyncio.sleep(0)
-        gc.collect()
-        await asyncio.sleep(0)
+    async def check_registration():
+        assert SERVICE_TYPE == "_wahoo-fitness-tnp._tcp.local."
+        advertisement = ServerAdvertisement(name="FortiusANT Test", address="127.0.0.1", port=36866)
+        await advertisement.start()
+        try:
+            assert advertisement._info is not None
+            assert advertisement._info.type == SERVICE_TYPE
+        finally:
+            await advertisement.stop()
+            await asyncio.sleep(0.1)
+
+    # Windows Proactor UDP overlapped operations can survive async_close().
+    # A dedicated selector loop avoids orphaned transports without changing
+    # pytest-asyncio's global loop policy or suppressing resource warnings.
+    with asyncio.Runner(loop_factory=asyncio.SelectorEventLoop) as runner:
+        runner.run(check_registration())
