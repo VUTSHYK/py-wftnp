@@ -61,3 +61,22 @@ async def test_advertisement_failure_rolls_back_tcp():
 def test_mdns_requires_explicit_address():
     with pytest.raises(ValueError, match="mdns_address"):
         WftnpServer(mdns_name="Test Trainer")
+
+
+
+@pytest.mark.asyncio
+async def test_wahoo_long_service_type_registers_with_real_zeroconf():
+    """The Wahoo DNS-SD service label exceeds RFC 6335's 15-byte limit."""
+    from wftnp.advertisement import ServerAdvertisement
+    from wftnp.discovery import SERVICE_TYPE
+
+    assert SERVICE_TYPE == "_wahoo-fitness-tnp._tcp.local."
+    advertisement = ServerAdvertisement(
+        name="FortiusANT Test", address="127.0.0.1", port=36866
+    )
+    await advertisement.start()
+    try:
+        assert advertisement._info is not None
+        assert advertisement._info.type == SERVICE_TYPE
+    finally:
+        await advertisement.stop()
