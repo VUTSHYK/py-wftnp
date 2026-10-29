@@ -146,7 +146,7 @@ class ServerConnection:
                     payload = await self.reader.readexactly(header.length)
                 request = Frame(header.opcode, header.sequence, header.status, payload)
                 self.server._diagnostic(
-                    f'request opcode={header.opcode.name} sequence={header.sequence} length={len(payload)}'
+                    f"request opcode={header.opcode.name} sequence={header.sequence} length={len(payload)}"
                 )
                 self.server._diagnostic(f"RX {(data + payload).hex(' ')}", True)
                 await self._handle_request(request)
@@ -180,7 +180,7 @@ class ServerConnection:
                 if len(request.payload) != 16:
                     raise ProtocolError("CHARACTERISTICS request payload must be exactly one UUID")
                 service_uuid = UUID(bytes=request.payload)
-                self.server._diagnostic(f'discover characteristics: {service_uuid}')
+                self.server._diagnostic(f"discover characteristics: {service_uuid}")
                 service = self.server.registry.service_for(service_uuid)
                 if service is None:
                     await self._send_error(request.opcode, request.sequence, ResponseCode.SERVICE_NOT_FOUND)
