@@ -263,7 +263,7 @@ class ServerConnection:
                     )
                     return
                 if enable:
-                    if not (characteristic.properties & CharacteristicProperties.NOTIFY):
+                    if not (characteristic.properties & (CharacteristicProperties.NOTIFY | CharacteristicProperties.INDICATE)):
                         await self._send_error(
                             request.opcode, request.sequence, ResponseCode.OPERATION_NOT_SUPPORTED
                         )
