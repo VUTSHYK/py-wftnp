@@ -150,9 +150,7 @@ class ServerConnection:
                 )
                 self.server._diagnostic(f"RX {(data + payload).hex(' ')}", True)
                 if header.opcode == Opcode.SUBSCRIBE:
-                    self.server._diagnostic(
-                        f"SUBSCRIBE payload={payload.hex(' ')} length={len(payload)}"
-                    )
+                    self.server._diagnostic(f"SUBSCRIBE payload={payload.hex(' ')} length={len(payload)}")
                 await self._handle_request(request)
         except (asyncio.IncompleteReadError, ConnectionError, OSError, TimeoutError):
             pass
@@ -508,7 +506,8 @@ class WftnpServer:
         subscribers = tuple(self._subscriptions.get(characteristic_uuid, ()))
         self._diagnostic(
             f"NOTIFY {characteristic_uuid}: subscribers={len(subscribers)} "
-            f"length={len(value)} payload={value.hex(' ')}", True
+            f"length={len(value)} payload={value.hex(' ')}",
+            True,
         )
         tasks: list[asyncio.Task[None]] = []
         try:
