@@ -36,6 +36,7 @@ class CharacteristicProperties(IntFlag):
     READ = 1
     WRITE = 2
     NOTIFY = 4
+    INDICATE = 8
 
 
 @dataclass(frozen=True, slots=True)
