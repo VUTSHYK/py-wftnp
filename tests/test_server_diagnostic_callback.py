@@ -39,7 +39,7 @@ class TestServerDiagnostics(unittest.IsolatedAsyncioTestCase):
         await server.start()
         try:
             async with WftnpClient(Endpoint("127.0.0.1", server.port)) as client:
-                self.assertEqual(await client.discover_services(), [])
+                self.assertEqual(len(await client.discover_services()), 0)
         finally:
             await server.stop()
 
