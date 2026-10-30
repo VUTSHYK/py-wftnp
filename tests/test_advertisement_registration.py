@@ -25,6 +25,10 @@ async def test_registration_uses_non_strict_service_type(monkeypatch):
     info = register.await_args.args[0]
     assert SERVICE_TYPE == "_wahoo-fitness-tnp._tcp.local."
     assert info.type == SERVICE_TYPE
+    assert info.name == f"Tacx Vortex.{SERVICE_TYPE}"
+    assert info.server == "Tacx-Vortex.local."
+    assert info.port == 36866
+    assert info.parsed_addresses() == ["127.0.0.1"]
     assert register.await_args.kwargs == {"strict": False}
     await advertisement.stop()
     unregister.assert_awaited_once_with(info)
