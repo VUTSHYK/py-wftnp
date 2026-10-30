@@ -12,7 +12,8 @@ class TestServerDiagnostics(unittest.IsolatedAsyncioTestCase):
         events = []
         service_uuid = UUID("00001826-0000-1000-8000-00805f9b34fb")
         server = WftnpServer(
-            host="127.0.0.1", port=0,
+            host="127.0.0.1",
+            port=0,
             services=[ServiceSpec(service_uuid, ())],
             on_diagnostic=lambda message, raw: events.append((message, raw)),
         )
@@ -32,7 +33,8 @@ class TestServerDiagnostics(unittest.IsolatedAsyncioTestCase):
             raise RuntimeError("diagnostic sink unavailable")
 
         server = WftnpServer(
-            host="127.0.0.1", port=0,
+            host="127.0.0.1",
+            port=0,
             on_diagnostic=broken_callback,
         )
         await server.start()
