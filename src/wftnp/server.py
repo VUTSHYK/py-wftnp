@@ -253,10 +253,12 @@ class ServerConnection:
                 return
 
             if request.opcode == Opcode.SUBSCRIBE:
-                if len(request.payload) != 17:
-                    raise ProtocolError("SUBSCRIBE request payload must be UUID + enable flag")
+                # UUID-only requests enable notifications (TrainingPeaks).
+                # UUID + flag preserves explicit Zwift subscribe/unsubscribe.
+                if len(request.payload) not in (16, 17):
+                    raise ProtocolError("SUBSCRIBE request payload must be UUID or UUID + enable flag")
                 characteristic_uuid = UUID(bytes=request.payload[:16])
-                enable = request.payload[16]
+                enable = request.payload[16] if len(request.payload) == 17 else 1
                 if enable not in (0, 1):
                     raise ProtocolError("SUBSCRIBE enable flag must be 0 or 1")
                 characteristic = self.server.registry.characteristic_for(characteristic_uuid)
