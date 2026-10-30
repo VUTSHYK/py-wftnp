@@ -112,7 +112,9 @@ class ServerConnection:
             async with self._lock:
                 if self.closed.is_set():
                     raise ConnectionError("WFTNP connection is closed")
-                self.writer.write(encode(Frame(opcode, sequence, status, payload)))
+                frame_bytes = encode(Frame(opcode, sequence, status, payload))
+                self.writer.write(frame_bytes)
+                self.server._diagnostic("TX " + frame_bytes.hex(" "), raw=True)
                 await self.writer.drain()
 
     async def _send_error(
@@ -142,6 +144,7 @@ class ServerConnection:
                     continue
                 async with asyncio.timeout(self.server.idle_timeout):
                     payload = await self.reader.readexactly(header.length)
+                self.server._diagnostic("RX " + (data + payload).hex(" "), raw=True)
                 request = Frame(header.opcode, header.sequence, header.status, payload)
                 await self._handle_request(request)
         except (asyncio.IncompleteReadError, ConnectionError, OSError, TimeoutError):
@@ -296,6 +299,7 @@ class WftnpServer:
         max_pending_notifications: int = 64,
         max_connections: int | None = None,
         idle_timeout: float = 3600.0,
+        on_diagnostic: Callable[[str, bool], None] | None = None,
         on_disconnect: Callable[[], None | Awaitable[None]] | None = None,
         on_disconnect_with_connection: Callable[[ServerConnection], None | Awaitable[None]] | None = None,
         mdns_name: str | None = None,
@@ -318,6 +322,7 @@ class WftnpServer:
         self._advertisement: ServerAdvertisement | None = None
         self.max_connections = max_connections
         self.idle_timeout = idle_timeout
+        self.on_diagnostic = on_diagnostic
         self.on_disconnect = on_disconnect
         self.on_disconnect_with_connection = on_disconnect_with_connection
         self.write_timeout = write_timeout
@@ -332,6 +337,14 @@ class WftnpServer:
         self._notify_tasks: set[asyncio.Task[None]] = set()
         self._notify_slots = asyncio.Semaphore(max_pending_notifications)
         self._notify_calls: set[asyncio.Task[None]] = set()
+
+    def _diagnostic(self, message: str, *, raw: bool = False) -> None:
+        """Best-effort diagnostics must never interrupt protocol handling."""
+        if self.on_diagnostic is not None:
+            try:
+                self.on_diagnostic(message, raw)
+            except Exception:
+                pass
 
     @property
     def endpoint(self) -> Endpoint:
@@ -367,6 +380,7 @@ class WftnpServer:
                 raise
             self._advertisement = advertisement
         self._started.set()
+        self._diagnostic(f"TCP listening on {self.host}:{self.port}")
 
     async def stop(self) -> None:
         if self._server is None:
@@ -417,10 +431,13 @@ class WftnpServer:
             return
         connection = ServerConnection(self, reader, writer)
         self._connections.add(connection)
+        self._diagnostic("client connected")
 
     async def _detach_connection(self, connection: ServerConnection) -> None:
         was_connected = connection in self._connections
         self._connections.discard(connection)
+        if was_connected:
+            self._diagnostic("client disconnected")
         if was_connected and self.on_disconnect_with_connection is not None:
             result = self.on_disconnect_with_connection(connection)
             if inspect.isawaitable(result):
@@ -435,12 +452,14 @@ class WftnpServer:
 
     def _register_subscription(self, connection: ServerConnection, characteristic_uuid: UUID) -> None:
         self._subscriptions.setdefault(characteristic_uuid, set()).add(connection)
+        self._diagnostic(f"subscribed {characteristic_uuid}")
 
     def _unregister_subscription(self, connection: ServerConnection, characteristic_uuid: UUID) -> None:
         subscribers = self._subscriptions.get(characteristic_uuid)
         if subscribers is None:
             return
         subscribers.discard(connection)
+        self._diagnostic(f"unsubscribed {characteristic_uuid}")
         if not subscribers:
             self._subscriptions.pop(characteristic_uuid, None)
 
