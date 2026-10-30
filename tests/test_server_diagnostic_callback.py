@@ -1,11 +1,10 @@
 """Regression coverage for optional WFTNP server diagnostics."""
 
-import asyncio
 import unittest
 from uuid import UUID
 
 from wftnp import Endpoint, WftnpClient
-from wftnp.server import WftnpServer, ServiceSpec, CharacteristicSpec
+from wftnp.server import ServiceSpec, WftnpServer
 
 
 class TestServerDiagnostics(unittest.IsolatedAsyncioTestCase):
