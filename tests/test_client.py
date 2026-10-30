@@ -155,6 +155,7 @@ async def test_subscription_deadline_includes_wait_for_bookkeeping(client):
             await client.subscribe(CHARACTERISTIC)
     assert not client._subscriptions
     assert client.state == ClientState.READY
+    client._request_timeout = 1.0
     assert await client.read_characteristic(CHARACTERISTIC) == b"value"
 
 
