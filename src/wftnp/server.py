@@ -149,6 +149,10 @@ class ServerConnection:
                     f"request opcode={header.opcode.name} sequence={header.sequence} length={len(payload)}"
                 )
                 self.server._diagnostic(f"RX {(data + payload).hex(' ')}", True)
+                if header.opcode == Opcode.SUBSCRIBE:
+                    self.server._diagnostic(
+                        f"SUBSCRIBE payload={payload.hex(' ')} length={len(payload)}"
+                    )
                 await self._handle_request(request)
         except (asyncio.IncompleteReadError, ConnectionError, OSError, TimeoutError):
             pass
@@ -258,6 +262,10 @@ class ServerConnection:
 
             if request.opcode == Opcode.SUBSCRIBE:
                 if len(request.payload) != 17:
+                    self.server._diagnostic(
+                        f"SUBSCRIBE rejected: expected 17 bytes (UUID + enable flag), "
+                        f"received {len(request.payload)}; payload={request.payload.hex(' ')}"
+                    )
                     raise ProtocolError("SUBSCRIBE request payload must be UUID + enable flag")
                 characteristic_uuid = UUID(bytes=request.payload[:16])
                 enable = request.payload[16]
@@ -282,6 +290,11 @@ class ServerConnection:
                     self.subscriptions.discard(characteristic_uuid)
                     self.server._unregister_subscription(self, characteristic_uuid)
                 await self._send_frame(Opcode.SUBSCRIBE, request.sequence, payload=characteristic_uuid.bytes)
+                self.server._diagnostic(
+                    f"SUBSCRIBE accepted: {characteristic_uuid} "
+                    f"{'on' if enable else 'off'}; "
+                    f"subscribers={len(self.server._subscriptions.get(characteristic_uuid, ()))}"
+                )
                 return
         except ProtocolError:
             await self._send_error(request.opcode, request.sequence)
@@ -493,6 +506,10 @@ class WftnpServer:
         if caller is not None:
             self._notify_calls.add(caller)
         subscribers = tuple(self._subscriptions.get(characteristic_uuid, ()))
+        self._diagnostic(
+            f"NOTIFY {characteristic_uuid}: subscribers={len(subscribers)} "
+            f"length={len(value)} payload={value.hex(' ')}", True
+        )
         tasks: list[asyncio.Task[None]] = []
         try:
             for subscriber in subscribers:
