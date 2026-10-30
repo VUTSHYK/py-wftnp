@@ -208,16 +208,28 @@ async def test_indicate_characteristic_subscription_and_notification_wire():
     reader, writer = await asyncio.open_connection(server.host, server.port)
     try:
         assert await request(reader, writer, 2, 1, SERVICE.bytes) == (
-            1, 2, 1, 0, SERVICE.bytes + control_point.bytes + b"\\x0a"
+            1,
+            2,
+            1,
+            0,
+            SERVICE.bytes + control_point.bytes + b"\x0a",
         )
-        assert await request(reader, writer, 5, 2, control_point.bytes + b"\\x01") == (
-            1, 5, 2, 0, control_point.bytes
+        assert await request(reader, writer, 5, 2, control_point.bytes + b"\x01") == (
+            1,
+            5,
+            2,
+            0,
+            control_point.bytes,
         )
-        response = b"\\x80\\x00\\x01"
+        response = b"\x80\x00\x01"
         await server.notify_characteristic(control_point, response)
         assert await frame(reader) == (1, 6, 0, 0, control_point.bytes + response)
-        assert await request(reader, writer, 5, 3, control_point.bytes + b"\\x00") == (
-            1, 5, 3, 0, control_point.bytes
+        assert await request(reader, writer, 5, 3, control_point.bytes + b"\x00") == (
+            1,
+            5,
+            3,
+            0,
+            control_point.bytes,
         )
         assert control_point not in server._subscriptions
     finally:
