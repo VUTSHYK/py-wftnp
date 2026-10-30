@@ -23,9 +23,9 @@ async def test_legacy_and_explicit_subscriptions_share_notification_path():
     server = WftnpServer(
         host="127.0.0.1",
         port=0,
-        services=[ServiceSpec(service_uuid, (
-            CharacteristicSpec(bike_uuid, CharacteristicProperties.NOTIFY),
-        ))],
+        services=[
+            ServiceSpec(service_uuid, (CharacteristicSpec(bike_uuid, CharacteristicProperties.NOTIFY),))
+        ],
     )
     await server.start()
     legacy_reader, legacy_writer = await asyncio.open_connection("127.0.0.1", server.port)
