@@ -1,6 +1,7 @@
 """Regression: Wahoo's long DNS-SD service type requires non-strict registration."""
 
 import pytest
+
 from wftnp.advertisement import ServerAdvertisement
 from wftnp.discovery import SERVICE_TYPE
 
