@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import re
 import socket
 from collections.abc import Iterable
 from uuid import UUID
@@ -56,6 +57,11 @@ class ServerAdvertisement:
         if self.mac_address is not None:
             properties["mac-address"] = self.mac_address
 
+        # MyWhoosh matches the SRV target against the instance name with
+        # spaces replaced by hyphens. Keep the target an ASCII DNS label.
+        hostname_label = re.sub(r"[^A-Za-z0-9-]", "-", self.name.replace(" ", "-"))
+        hostname_label = hostname_label.strip("-")[:63].rstrip("-") or "wftnp"
+
         info = ServiceInfo(
             SERVICE_TYPE,
             f"{self.name}.{SERVICE_TYPE}",
@@ -67,7 +73,7 @@ class ServerAdvertisement:
             ],
             port=self.port,
             properties=properties,
-            server=f"{socket.gethostname().split('.')[0]}.local.",
+            server=f"{hostname_label}.local.",
         )
         zeroconf = AsyncZeroconf()
         try:
