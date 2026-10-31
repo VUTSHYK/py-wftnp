@@ -59,8 +59,7 @@ async def test_mywhoosh_instance_matches_srv_target(monkeypatch, name, target):
         assert info.properties[b"serial-number"] == b"vortex-001"
         assert info.properties[b"mac-address"] == b"02:00:00:00:00:01"
         assert info.properties[b"ble-service-uuids"] == (
-            b"00001826-0000-1000-8000-00805f9b34fb,"
-            b"0000180d-0000-1000-8000-00805f9b34fb"
+            b"00001826-0000-1000-8000-00805f9b34fb,0000180d-0000-1000-8000-00805f9b34fb"
         )
     finally:
         await ad.stop()
