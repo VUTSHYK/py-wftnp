@@ -9,6 +9,7 @@ on:
       - 'src/wftnp/advertisement.py'
       - 'src/wftnp/discovery.py'
       - 'tests/test_mywhoosh_discovery.py'
+      - 'tests/test_mywhoosh_mdns_integration.py'
       - 'tests/test_advertisement_registration.py'
       - 'tests/test_server_mdns.py'
       - 'tests/test_discovery.py'
@@ -30,11 +31,11 @@ jobs:
         run: uv sync --locked --all-extras
       - name: Check MyWhoosh test formatting and lint
         run: |
-          uv run ruff check tests/test_mywhoosh_discovery.py
-          uv run ruff format --check tests/test_mywhoosh_discovery.py
+          uv run ruff check tests/test_mywhoosh_discovery.py tests/test_mywhoosh_mdns_integration.py
+          uv run ruff format --check tests/test_mywhoosh_discovery.py tests/test_mywhoosh_mdns_integration.py
       - name: MyWhoosh and existing DNS-SD regression tests
         env:
           PYTHONUNBUFFERED: '1'
         run: |
-          uv run python -m pytest -vv -s --durations=10 tests/test_mywhoosh_discovery.py tests/test_advertisement_registration.py tests/test_server_mdns.py tests/test_discovery.py
+          uv run python -m pytest -vv -s --durations=10 tests/test_mywhoosh_discovery.py tests/test_mywhoosh_mdns_integration.py tests/test_advertisement_registration.py tests/test_server_mdns.py tests/test_discovery.py
         timeout-minutes: 8
