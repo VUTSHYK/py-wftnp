@@ -1,0 +1,40 @@
+name: MyWhoosh DNS-SD regression
+
+on:
+  push:
+    branches:
+      - feature/mywhoosh-discovery-tests
+  pull_request:
+    paths:
+      - 'src/wftnp/advertisement.py'
+      - 'src/wftnp/discovery.py'
+      - 'tests/test_mywhoosh_discovery.py'
+      - 'tests/test_advertisement_registration.py'
+      - 'tests/test_server_mdns.py'
+      - 'tests/test_discovery.py'
+      - '.github/workflows/mywhoosh-discovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+        with:
+          python-version: '3.11'
+      - name: Install locked dependencies
+        run: uv sync --locked --all-extras
+      - name: Check MyWhoosh test formatting and lint
+        run: |
+          uv run ruff check tests/test_mywhoosh_discovery.py
+          uv run ruff format --check tests/test_mywhoosh_discovery.py
+      - name: MyWhoosh and existing DNS-SD regression tests
+        env:
+          PYTHONUNBUFFERED: '1'
+        run: |
+          uv run python -m pytest -vv -s --durations=10 tests/test_mywhoosh_discovery.py tests/test_advertisement_registration.py tests/test_server_mdns.py tests/test_discovery.py
+        timeout-minutes: 8
