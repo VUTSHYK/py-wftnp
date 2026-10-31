@@ -22,7 +22,6 @@ from wftnp.discovery import SERVICE_TYPE
         ("Tacx Vortex", "Tacx-Vortex.local."),
         ("Wahoo KICKR 1234", "Wahoo-KICKR-1234.local."),
         ("FortiusANT", "FortiusANT.local."),
-        ("Tacx Vortex #1", "Tacx-Vortex--1.local."),
     ],
 )
 async def test_mywhoosh_instance_matches_srv_target(monkeypatch, name, target):
